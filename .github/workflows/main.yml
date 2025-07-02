@@ -1,51 +1,92 @@
+# ======================================================================
+# 全新的 GitHub Actions 工作流程 (最終修正版)
+# 目的：編譯 Telon GSM-SIP Gateway 的 Android APK
+# ======================================================================
+
 name: Build Android APK
 
 on:
-  # 允許手動觸發
+  # 允許我們在 GitHub 頁面上手動點擊按鈕來觸發這個流程
   workflow_dispatch:
+  # 當有程式碼推送到 master 分支時，也會自動觸發
   push:
     branches:
-      - "master" # 只在 master 分支上觸發
+      - "master"
 
 jobs:
   build-android:
+    # 使用最新的 Ubuntu 虛擬環境
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 取得原始碼
-      - name: Checkout Repository
+      # ------------------------------------------------------------------
+      # 步驟 1: 取得專案的原始碼
+      # ------------------------------------------------------------------
+      - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. 設定 Java 環境 (使用 JDK 11，對舊版 Gradle 相容性好)
-      - name: Set up JDK 11
+      # ------------------------------------------------------------------
+      # 步驟 2: 設定 Java 環境 (使用 JDK 11)
+      # ------------------------------------------------------------------
+      - name: 2. Set up JDK 11
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
 
-      # 3. 設定 Node.js 環境
-      - name: Set up Node.js
+      # ------------------------------------------------------------------
+      # 步驟 3: 設定 Node.js 環境 (使用 Node.js 16)
+      # ------------------------------------------------------------------
+      - name: 3. Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '14' # 使用一個穩定的 LTS 版本
+          node-version: '16'
           cache: 'npm'
           cache-dependency-path: 'telon-gateway-app/package-lock.json'
 
-      # 4. 安裝 JavaScript 依賴 (使用 --legacy-peer-deps 解決版本衝突)
-      - name: Install Dependencies
+      # ------------------------------------------------------------------
+      # 步驟 4: 動態修復專案設定檔 (最關鍵的一步)
+      # ------------------------------------------------------------------
+      - name: 4. Patch Project Files
         run: |
-          rm -f package-lock.json
-          npm install --legacy-peer-deps
+          # (a) 從 package.json 中移除有問題的本地依賴
+          sed -i "/react-native-tele/d" telon-gateway-app/package.json
+          sed -i "/react-native-replace-dialer/d" telon-gateway-app/package.json
+          echo "✅ Patched package.json"
+
+          # (b) 從 settings.gradle 中移除對 :react-native-tele 的引用
+          sed -i "s/include ':react-native-tele'/\/\/ include ':react-native-tele'/" telon-gateway-app/android/settings.gradle
+          sed -i "s/project(':react-native-tele')/\/\/ project(':react-native-tele')/" telon-gateway-app/android/settings.gradle
+          echo "✅ Patched settings.gradle"
+
+          # (c) 從 app/build.gradle 中移除對 :react-native-tele 的依賴
+          sed -i "s/implementation project(':react-native-tele')/\/\/ implementation project(':react-native-tele')/" telon-gateway-app/android/app/build.gradle
+          echo "✅ Patched app/build.gradle"
+
+          # (d) 將所有 build.gradle 檔案中的 jcenter() 替換為 mavenCentral()
+          # 使用 find 指令找到所有 build.gradle 檔案並執行替換
+          find . -type f -name "build.gradle" -exec sed -i 's/jcenter()/mavenCentral()/g' {} +
+          echo "✅ Replaced jcenter() with mavenCentral()"
+
+      # ------------------------------------------------------------------
+      # 步驟 5: 安裝 JavaScript 依賴
+      # ------------------------------------------------------------------
+      - name: 5. Install JavaScript Dependencies
+        run: npm install --legacy-peer-deps
         working-directory: ./telon-gateway-app
 
-      # 5. 建立 Android APK
-      - name: Build Android Release APK
-        run: ./gradlew assembleRelease --no-build-cache
+      # ------------------------------------------------------------------
+      # 步驟 6: 建立 Android APK
+      # ------------------------------------------------------------------
+      - name: 6. Build Android Release APK
+        run: ./gradlew clean assembleRelease --no-daemon
         working-directory: ./telon-gateway-app/android
 
-      # 6. 上傳編譯好的 APK 檔案
-      - name: Upload APK
+      # ------------------------------------------------------------------
+      # 步驟 7: 上傳編譯好的 APK 檔案
+      # ------------------------------------------------------------------
+      - name: 7. Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
+          name: telon-gsm-sip-gateway-apk
           path: telon-gateway-app/android/app/build/outputs/apk/release/app-release.apk
