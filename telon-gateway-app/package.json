@@ -1,13 +1,7 @@
 {
   "name": "recat-native-tele-example",
-  "main": "index.js",
-  "description": "Example of react-native-tele for React Native",
   "version": "0.0.1",
-  "author": {
-    "name": "Anton Dodonov",
-    "email": "cpodimas@gmail.com"
-  },
-  "license": "ISC",
+  "private": true,
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
@@ -20,8 +14,9 @@
     "react-native": "0.69.12",
     "react-native-console-panel": "^0.1.0",
     "react-native-device-info": "^10.12.0",
-    "react-native-sip2": "https://github.com/telon-org/react-native-sip2",
-    "react-native-tele": "https://github.com/telon-org/react-native-tele"
+    "react-native-permissions": "^2.2.2",
+    "react-native-sip2": "https://github.com/telon-org/react-native-sip2#841f9eaefd685f31154075599c861fc49c34a3aa",
+    "react-native-tele": "https://github.com/telon-org/react-native-tele#293840dfd036f92371acdda9616a8ba093cde99b"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
