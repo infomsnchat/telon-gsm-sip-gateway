@@ -1,155 +1,49 @@
-name: Build
+name: Build Android APK
 
 on:
+  # 允許手動觸發
+  workflow_dispatch:
   push:
     branches:
-      - "**"
+      - "master" # 只在 master 分支上觸發
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 取得原始碼
       - name: Checkout Repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-#      - name: Setup Node.js
-#        uses: actions/setup-node@v2
-#        with:
-#          #node-version: 20.18.1
-#          node-version: 12
-
-#      - name: Install dependencies
-#        run: npm install
-#        working-directory: telon-gateway-app
-#
-#      - name: Run tests
-#        run: npm test
-
-  build_android:
-    runs-on: ubuntu-latest
-
-    needs: build
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v2
-      #- name: Setup Java 8
-      #  uses: actions/setup-java@v2
-      #  with:
-      #    distribution: 'temurin'
-      #    java-version: '8' # Требуется Java 8 для Gradle
-
-      - name: Cache Node.js
-        uses: actions/cache@v2
+      # 2. 設定 Java 環境 (使用 JDK 11，對舊版 Gradle 相容性好)
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
         with:
-            path: ~/.npm
-            key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-            restore-keys: |
-              ${{ runner.os }}-node-modules-
+          distribution: 'temurin'
+          java-version: '11'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v2
+      # 3. 設定 Node.js 環境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 12
+          node-version: '16' # 使用一個穩定的 LTS 版本
+          cache: 'npm'
+          cache-dependency-path: 'telon-gateway-app/package-lock.json'
 
-
-      - name: Set up OpenJDK 8
-        run: |
-          sudo apt update
-          sudo apt install openjdk-8-jdk
-      #- name: Setup Java 8
-      #  uses: actions/setup-java@v2
-      #  with:
-            #distribution: 'temurin'
-            #java-version: '8'
-            #distribution: 'adoptopenjdk'
-      #- name: Setup Java 17
-      #  uses: actions/setup-java@v2
-      #  with:
-      #    distribution: 'temurin'
-      #    java-version: '17'
-
-      #- name: Setup Node.js
-      #  uses: actions/setup-node@v2
-      #  with:
-      #    node-version: 12
-      #    #node-version: 18.19.0
-
-      - name: Setup Android SDK (API Level 19)
-        uses: android-actions/setup-android@v2
-        with:
-          api-level: 19
-          ndk: true
-          build-tools: 25.2.5
-      #    build-tools: 30.0.3
-
-
-      #- name: Install NDK (if required)
-      #  run: |
-      #    sdkmanager "ndk;21.4.7075529"
-      #    echo "ndk.dir=/usr/local/lib/android/sdk/ndk/21.4.7075529" >> android/local.properties
-      #  working-directory: telon-gateway-app        
-      #  env:
-      #    ANDROID_HOME: ${{ runner.tool_cache }}/android-sdk
-      #    PATH: $PATH:${{ runner.tool_cache }}/android-sdk/cmdline-tools/latest/bin
-
-      - name: Download NDK r17b
-        run: |
-          curl -o android-ndk-r17b-linux-x86_64.zip https://dl.google.com/android/repository/android-ndk-r17b-linux-x86_64.zip
-          unzip android-ndk-r17b-linux-x86_64.zip -d $HOME/android-ndk
-          rm android-ndk-r17b-linux-x86_64.zip
-
-      - name: Set NDK path
-        run: |
-          echo "NDK_HOME=$HOME/android-ndk/android-ndk-r17b" >> $GITHUB_ENV
-          echo "ANDROID_NDK_HOME=$HOME/android-ndk/android-ndk-r17b" >> $GITHUB_ENV
-          echo "ndk.dir=$HOME/android-ndk/android-ndk-r17b" > $GITHUB_WORKSPACE/local.properties
-
-      - name: Verify NDK installation
-        run: |
-          echo "NDK_HOME=$NDK_HOME"
-          ls -la $NDK_HOME
-
-      - name: Navigate to Project Root
-        run: cd $GITHUB_WORKSPACE
-        working-directory: telon-gateway-app
-
+      # 4. 安裝 JavaScript 依賴 (使用 --legacy-peer-deps 解決版本衝突)
       - name: Install Dependencies
-        run: npm install
-        working-directory: telon-gateway-app
+        run: npm install --legacy-peer-deps
+        working-directory: ./telon-gateway-app
 
+      # 5. 建立 Android APK
+      - name: Build Android Release APK
+        run: ./gradlew assembleRelease
+        working-directory: ./telon-gateway-app/android
 
-      - name: Build Android App Bundle
-        run: |
-          mkdir -p android/app/build/intermediates/assets/release/
-          npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/build/intermediates/assets/release/index.android.bundle --assets-dest android/app/build/intermediates/res/merged/release
-        working-directory: telon-gateway-app
-
-      - name: Build Android Release
-        run: |
-          cd android
-          chmod +x gradlew 
-          ./gradlew clean
-          #!./gradlew wrapper --gradle-version 6.2.2 --distribution-type all
-          ./gradlew bundleRelease -Pkeystore.password=${{ secrets.KEYSTORE_PASSWORD }}
-        working-directory: telon-gateway-app
-
-  download_bundle:
-    runs-on: ubuntu-latest
-
-    needs: build_android
-
-    steps:
-      - name: Download Android App Bundle
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/dist
-          cp $GITHUB_WORKSPACE/android/app/build/outputs/bundle/release/app-release.aab $GITHUB_WORKSPACE/dist
-        working-directory: telon-gateway-app
-
-
-      - name: Archive Bundle
-        uses: actions/upload-artifact@v2
+      # 6. 上傳編譯好的 APK 檔案
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: android-bundle
-          path: $GITHUB_WORKSPACE/dist
+          name: app-release-apk
+          path: telon-gateway-app/android/app/build/outputs/apk/release/app-release.apk
