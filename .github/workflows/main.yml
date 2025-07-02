@@ -40,7 +40,7 @@ jobs:
 
       # 5. 建立 Android APK
       - name: Build Android Release APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --no-build-cache
         working-directory: ./telon-gateway-app/android
 
       # 6. 上傳編譯好的 APK 檔案
