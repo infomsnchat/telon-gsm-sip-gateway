@@ -34,8 +34,8 @@ jobs:
       # 4. 安裝 JavaScript 依賴 (使用 --legacy-peer-deps 解決版本衝突)
       - name: Install Dependencies
         run: |
-        rm -f package-lock.json
-        npm install --legacy-peer-deps
+          rm -f package-lock.json
+          npm install --legacy-peer-deps
         working-directory: ./telon-gateway-app
 
       # 5. 建立 Android APK
